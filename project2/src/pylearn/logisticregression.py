@@ -55,19 +55,27 @@ class SGDClassification():
 
         beta = np.random.randn(X.shape[1])
 
+        # gradient_list = np.zeros(n_epochs)
+
         for epoch in range(n_epochs):
             indeces = np.arange(n)
             np.random.shuffle(indeces)
             j = 0
+
+            max_gradient = 10
             for batch in range(n_batches):
                 rand_indeces = indeces[j*batch_size:(j+1)*batch_size]
                 X_i = X[rand_indeces, :]
                 y_i = y[rand_indeces]
-                
+
                 gradients = X_i.T @ (self.sigmoid(X_i @ beta) - y_i)
+
+                # if np.max(gradients) > max_gradient:
+                #     max_gradient = np.max(gradients)
+
                 beta -= self.eta0*gradients
                 j += 1
-
+            # gradient_list[epoch] = max_gradient
         self.beta = beta
         return beta
 
@@ -79,9 +87,9 @@ class SGDClassification():
 
     def sigmoid(self, x):
 
-#        term = np.exp(X @ beta)
-#        return term / (1 + term)
-        return 1/(1 + np.exp(-x))
+        term = np.exp(x)
+        return term / (1 + term)
+        # return 1/(1 + np.exp(-x))
 
 
 

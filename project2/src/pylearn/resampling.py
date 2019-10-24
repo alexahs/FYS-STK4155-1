@@ -11,6 +11,7 @@
 import numpy as np
 from sklearn.model_selection import KFold
 from sklearn.preprocessing import StandardScaler
+from sklearn.compose import ColumnTransformer
 
 from pylearn.logisticregression import SGDClassification
 from pylearn.linearmodel import Regression
@@ -18,7 +19,7 @@ from pylearn.metrics import *
 from pylearn.neuralnetwork import NeuralNetwork
 
 
-def CV(X, y, model, n_splits=5, random_state=0, classification=True):
+def CV(X, y, model, n_splits=5, random_state=0, classification=True, scale_columns = None):
 
     kf = KFold(n_splits=n_splits, random_state=random_state, shuffle=True)
 
@@ -26,13 +27,19 @@ def CV(X, y, model, n_splits=5, random_state=0, classification=True):
     r2 = np.zeros(n_splits)
     accuracy = np.zeros(n_splits)
 
+
     i = 0
     for train_idx, val_idx in kf.split(X):
-        X_train, X_val= standardize_train_val(X[train_idx], X[val_idx])
+
+        # Scale continuous features. None means scale all columns
+        if scale_columns != None:
+            X_train, X_val = standardize_specific(X[train_idx], X[val_idx], scale_columns)
+        else:
+            X_train, X_val = standardize_all(X[train_idx], X[val_idx])
 
         # Scaling target y if not classification problem
         if not classification:
-            y_train, y_val = standardize_train_val(y[train_idx], y[val_idx])
+            y_train, y_val = standardize_all(y[train_idx], y[val_idx])
         else:
             y_train, y_val = y[train_idx], y[val_idx]
 
@@ -57,11 +64,12 @@ def CV(X, y, model, n_splits=5, random_state=0, classification=True):
     return mse_cv, r2_cv, accuracy_cv
 
 
-def standardize_train_val(train, val):
+def standardize_all(train, val):
 
     sc = StandardScaler()
     train = sc.fit_transform(train)
     val = sc.transform(val)
+
 
 # TODO: Manual scaling, in order to remove the need for sklearn.
 #    X_train = X_train - np.mean(X_train, axis=0)
@@ -72,5 +80,20 @@ def standardize_train_val(train, val):
 #        X_train[:,i] /= col_std[i]
 #        X_test[:,i] /= col_std[i]
 
+
+    return train, val
+
+
+def standardize_specific(train, val, columns):
+
+    sc = StandardScaler()
+    scaler = ColumnTransformer(
+            remainder="passthrough",
+            transformers=[
+                ('standardscaler', sc, columns)])
+
+
+    train = scaler.fit_transform(train)
+    val = scaler.transform(val)
 
     return train, val
