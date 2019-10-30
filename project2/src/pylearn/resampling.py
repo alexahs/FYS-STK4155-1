@@ -10,7 +10,7 @@
 # ============================================================================
 import numpy as np
 from sklearn.model_selection import KFold
-from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import StandardScaler, MinMaxScaler
 from sklearn.compose import ColumnTransformer
 
 from pylearn.logisticregression import SGDClassification
@@ -66,7 +66,7 @@ def CV(X, y, model, n_splits=5, random_state=0, classification=True, scale_colum
 
 def standardize_all(train, val):
 
-    sc = StandardScaler()
+    sc = MinMaxScaler()
     train = sc.fit_transform(train)
     val = sc.transform(val)
 
@@ -86,7 +86,7 @@ def standardize_all(train, val):
 
 def standardize_specific(train, val, columns):
 
-    sc = StandardScaler()
+    sc = MinMaxScaler()
     scaler = ColumnTransformer(
             remainder="passthrough",
             transformers=[

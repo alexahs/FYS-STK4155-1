@@ -1,17 +1,22 @@
 import numpy as np
-from sklearn.model_selection import KFold
+from sklearn.model_selection import KFold, train_test_split
 from sklearn.preprocessing import StandardScaler, OneHotEncoder
 from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline
+from sklearn.decomposition import PCA
+# from sklearn.datasets import load_breast_cancer
 import pandas as pd
 import time
+import matplotlib.pyplot as plt
+# from scikitplot.metrics import plot_cumulative_gain
+import scikitplot.metrics as skplt
 
 
 from pylearn.logisticregression import SGDClassification
 from pylearn.linearmodel import Regression
 from pylearn.metrics import *
 from pylearn.neuralnetwork import NeuralNetwork
-from pylearn.resampling import CV
+from pylearn.resampling import *
 
 
 
@@ -63,6 +68,37 @@ def load_CC_data(filename):
     return X, np.ravel(y)
 
 
+
+def cumulative_gain(X_test, y_test, model):
+    # X_train_val, X_test, y_train_val, y_test = train_test_spilt(X, y)
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2)
+
+    scale_columns = list(range(9, X.shape[1]))
+
+    X_train, X_test = standardize_specific(X_train, X_test, scale_columns)
+
+    model.fit(X_train, y_train)
+
+    y_pred = model.predict(X_test, probability=True)
+    # print(model.beta)
+
+    y_pred = y_pred.reshape((len(y_pred), 1))
+    y_test = y_test.reshape((len(y_test), 1))
+
+    y_probas = np.concatenate((1-y_pred, y_pred), axis=1)
+
+
+
+    area_ratio = cumulative_gain_area_ratio(y_test, y_probas)
+
+
+
+# def analyze_logistic(X, y, model):
+
+
+
+
+
 def main():
     np.random.seed(2019)
     filename = 'data/default_of_credit_card_clients.xls'
@@ -70,16 +106,20 @@ def main():
 
     scale_columns = list(range(9, X.shape[1]))
 
+
+
     model = SGDClassification()
 
-    t0 = time.time()
-    mse, r2, accuracy = CV(X, y, model, scale_columns=scale_columns)
-    t1 = time.time()
-    print('elapsed time CV:', t1 - t0)
+    cumulative_gain(X, y, model)
 
-    print('mse:', mse)
-    print('r2:', r2)
-    print('accuracy:', accuracy)
+    # t0 = time.time()
+    # mse, r2, accuracy = CV(X_reduced, y, model, scale_columns=None)
+    # t1 = time.time()
+    # print('elapsed time CV:', t1 - t0)
+    #
+    # print('mse:', mse)
+    # print('r2:', r2)
+    # print('accuracy:', accuracy)
 
 
 

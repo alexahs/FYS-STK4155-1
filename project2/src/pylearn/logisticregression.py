@@ -36,6 +36,7 @@ class SGDClassification():
 
         if probability==False:
             self.y_pred = (self.y_pred > 0.5).astype(np.int)
+            print("hei")
 
         return self.y_pred
 
@@ -55,7 +56,6 @@ class SGDClassification():
 
         beta = np.random.randn(X.shape[1])
 
-        # gradient_list = np.zeros(n_epochs)
 
         for epoch in range(n_epochs):
             indeces = np.arange(n)
@@ -70,15 +70,15 @@ class SGDClassification():
 
                 gradients = X_i.T @ (self.sigmoid(X_i @ beta) - y_i)
 
-                # if np.max(gradients) > max_gradient:
-                #     max_gradient = np.max(gradients)
 
                 beta -= self.eta0*gradients
                 j += 1
-            # gradient_list[epoch] = max_gradient
         self.beta = beta
         return beta
 
+
+    def set_eta(self, eta):
+        self.eta0 = eta
 
 
     def learning_schedule(self, t, t0=1):
@@ -87,9 +87,9 @@ class SGDClassification():
 
     def sigmoid(self, x):
 
-        term = np.exp(x)
-        return term / (1 + term)
-        # return 1/(1 + np.exp(-x))
+        # term = np.exp(x)
+        # return term / (1 + term)
+        return 1/(1 + np.exp(-x))
 
 
 
