@@ -1,6 +1,6 @@
 import numpy as np
 from sklearn.model_selection import KFold, train_test_split
-from sklearn.preprocessing import StandardScaler, OneHotEncoder
+from sklearn.preprocessing import StandardScaler, OneHotEncoder, MinMaxScaler
 from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline
 from sklearn.decomposition import PCA
@@ -93,8 +93,24 @@ def cumulative_gain(X_test, y_test, model):
 
 
 
-# def analyze_logistic(X, y, model):
+def analyze_logistic(X, y, model):
+    X_train_val, X_test, y_train_val, y_test = train_test_split(X, y, test_size=0.2)
 
+    scale_columns = list(range(9, X.shape[1]))
+    minmaxscaler = MinMaxScaler()
+    scaler = ColumnTransformer(
+                        remainder='passthrough',
+                        transformers=[('minmaxscaler'), minmaxscaler, columns])
+
+    X_train_val = scaler.fit(X_train_val)
+    X_test = scaler.transform(X_train_val)
+
+    n_etas = 4
+    eta_vals = np.logspace(-1, -5, n_etas)
+
+    for eta in eta_vals:
+        model.set_eta(eta)
+        
 
 
 
