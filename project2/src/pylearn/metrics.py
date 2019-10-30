@@ -71,7 +71,7 @@ def cumulative_gain_area_ratio(y_true, y_probas, title='Cumulative Gains Curve',
     if ax is None:
         fig, ax = plt.subplots(1, 1, figsize=figsize)
 
-    # ax.set_title(title, fontsize=title_fontsize)
+    ax.set_title(title, fontsize=title_fontsize)
 
 
 

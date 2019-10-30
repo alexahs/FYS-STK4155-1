@@ -36,7 +36,6 @@ class SGDClassification():
 
         if probability==False:
             self.y_pred = (self.y_pred > 0.5).astype(np.int)
-            print("hei")
 
         return self.y_pred
 
