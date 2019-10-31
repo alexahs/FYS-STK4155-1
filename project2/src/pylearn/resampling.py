@@ -46,15 +46,14 @@ def CV(X, y, model, n_splits=5, random_state=0, classification=True, scale_colum
         # Fit and predict
         model.fit(X_train, y_train)
         y_pred = model.predict(X_val)
-
         # Store performance cores
         mse[i] = mean_squared_error(y_val, y_pred)
         r2[i] = r2_score(y_val, y_pred)
         # Only include accuracy if the model is a classification problem
         if classification:
             accuracy[i] = accuracy_score(y_val, y_pred)
-
         i += 1
+
 
     # Calculate mean of performance scores
     mse_cv = np.mean(mse)

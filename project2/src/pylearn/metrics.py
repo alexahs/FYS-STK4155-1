@@ -31,7 +31,7 @@ def r2_score(y_true, y_pred):
 
 
 
-def cumulative_gain_area_ratio(y_true, y_probas, title='Cumulative Gains Curve',
+def cumulative_gain_area_ratio(y_true, y_probas, onehot=False, title='Cumulative Gains Curve',
                          ax=None, figsize=None, title_fontsize="large",
                          text_fontsize="medium"):
 
@@ -49,6 +49,13 @@ def cumulative_gain_area_ratio(y_true, y_probas, title='Cumulative Gains Curve',
         raise ValueError('Cannot calculate Cumulative Gains for data with '
                          '{} category/ies'.format(len(classes)))
 
+
+    if not onehot:
+        y_probas = y_probas.reshape((len(y_probas), 1))
+        y_probas = np.concatenate((np.zeros((len(y_probas), 1)), y_probas), axis=1)
+
+
+
     # Compute Cumulative Gain Curves
     # percentages, gains1 = cumulative_gain_curve(y_true, y_probas[:, 0],
     #                                             classes[0])
@@ -57,6 +64,7 @@ def cumulative_gain_area_ratio(y_true, y_probas, title='Cumulative Gains Curve',
 
     best_curve_x = [0,np.sum(y_true)/len(y_true), 1]
     best_curve_y = [0, 1, 1]
+
 
 
     best_curve_area = auc(best_curve_x, best_curve_y) - 0.5

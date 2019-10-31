@@ -5,11 +5,13 @@ from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline
 from sklearn.decomposition import PCA
 from sklearn.datasets import load_breast_cancer
+from sklearn import linear_model
 import pandas as pd
 import time
 import matplotlib.pyplot as plt
-# from scikitplot.metrics import plot_cumulative_gain
+from scikitplot.metrics import plot_confusion_matrix
 import scikitplot.metrics as skplt
+import seaborn as sns
 
 
 from pylearn.logisticregression import SGDClassification
@@ -25,6 +27,20 @@ def load_CC_data(filename):
     nanDict = {}
     df = pd.read_excel(filename, header=1, skiprows=0, index_col=0, na_values=nanDict)
     df.rename(index=str, columns={"default payment next month": "defaultPaymentNextMonth"}, inplace=True)
+
+    #TODO:
+    #swap columns such that categories are consecutive columns 
+
+    # col_list = list(df)
+    #
+    # col_list[0], col_list[3] = col_list[3], col_list[0]
+    #
+    # df = df[col_list]
+    #
+    # # df.head()
+    #
+    #
+    # print(df)
 
     X = df.loc[:, df.columns != 'defaultPaymentNextMonth'].values
     y = df.loc[:, df.columns == 'defaultPaymentNextMonth'].values
@@ -53,11 +69,14 @@ def load_CC_data(filename):
     y = np.delete(y, outlier_rows, axis=0)
 
 
+
     onehotencoder = OneHotEncoder(categories="auto")
     preprocessor = ColumnTransformer(
             remainder="passthrough",
             transformers=[
                 ('onehot', onehotencoder, [1, 2, 3])])
+
+
 
 
     X = preprocessor.fit_transform(X)
@@ -69,55 +88,20 @@ def load_CC_data(filename):
 
 
 
-def cumulative_gain(X, y, model):
-    # X_train_val, X_test, y_train_val, y_test = train_test_spilt(X, y)
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2)
-    #
-    scale_columns = list(range(9, X.shape[1]))
-    #
-    X_train, X_test = standardize_specific(X_train, X_test, scale_columns)
-    #
-    model.fit(X_train, y_train)
-    #
-    y_pred = model.predict(X_test, probability=True)
-    # print(model.beta)
+def analyze_logistic(X, y, model, scale_columns, analyze_eta=False):
 
-    y_pred = y_pred.reshape((len(y_pred), 1))
-    y_test = y_test.reshape((len(y_test), 1))
-
-    y_probas = np.concatenate((1-y_pred, y_pred), axis=1)
-
-
-
-
-    area_ratio = cumulative_gain_area_ratio(y_test, y_probas)
-
-
-
-
-
-
-def analyze_logistic(X, y, model, analyze_eta=False):
     X_train_val, X_test, y_train_val, y_test = train_test_split(X, y, test_size=0.2)
 
-
-    print("X_test:", X_test.shape)
-    print("y_test:", y_test.shape)
-
-    columns = list(range(9, X.shape[1]))
+    # columns = list(range(9, X.shape[1]))
     minmaxscaler = MinMaxScaler()
     scaler = ColumnTransformer(
                         remainder='passthrough',
-                        transformers=[('minmaxscaler', minmaxscaler, columns)])
+                        transformers=[('minmaxscaler', minmaxscaler, scale_columns)])
 
 
 
     scaler.fit(X_train_val)
     X_test = scaler.transform(X_test)
-
-
-    # print(y_train_val.shape)
-    # print(y_test.shape)
 
 
     if analyze_eta:
@@ -132,61 +116,44 @@ def analyze_logistic(X, y, model, analyze_eta=False):
             model.set_eta(eta)
 
             error_models[:, i] = CV(X_train_val, y_train_val, model)
+            print(error_models[:, i])
 
             i += 1
+        max_accuracy_ind = np.argmax(error_models[2, :])
+        eta_opt = error_models[2, max_accuracy_ind]
+        model.set_eta(eta_opt)
     #end if
 
     X_train_val = scaler.transform(X_train_val)
 
+
     model.fit(X_train_val, y_train_val)
+
+    clf = linear_model.LogisticRegressionCV()
+    clf.fit(X_train_val, y_train_val)
+
+
+    # pred_train = model.predict(X_train_val, probability=True)
+    # pred_test = model.predict(X_test, probability=True)
+    # area_ratio_train = cumulative_gain_area_ratio(y_train_val, pred_train, title='training results')
+    # area_ratio_test = cumulative_gain_area_ratio(y_test, pred_test, title='test results')
+    # print('area ratio train:', area_ratio_train)
+    # print('area ratio test:', area_ratio_test)
 
     pred_train = model.predict(X_train_val)
     pred_test = model.predict(X_test)
-
-    # print("X_test:")
-    # print(X_test.shape)
-    #
-    #
-    # print("train1:")
-    # print(y_train_val.shape)
-    # print(pred_train.shape)
-    #
-    # print("test1:")
-    # print(y_test.shape)
-    # print(pred_test.shape)
+    pred_skl = clf.predict(X_test)
 
 
-    pred_train = pred_train.reshape((len(pred_train), 1))
-    y_train = y_train_val.reshape((len(y_train_val), 1))
-    pred_train = np.concatenate((1-pred_train, pred_train), axis=1)
+    ax1 = plot_confusion_matrix(y_test, pred_test, normalize=True, cmap='Blues')
+    ax2 = plot_confusion_matrix(y_test, pred_skl, normalize=True, cmap='Reds')
 
 
-    pred_test = pred_test.reshape((len(pred_test), 1))
-    y_test = y_test.reshape((len(y_test), 1))
-    pred_test = np.concatenate((1 - pred_test, pred_test), axis=1)
+    bottom, top = ax1.get_ylim()
+    ax1.set_ylim(bottom + 0.5, top - 0.5)
+    ax2.set_ylim(bottom + 0.5, top - 0.5)
 
-
-
-    # print(y_prob_test.shape)
-    # print(y_prob_train.shape)
-    # print(y_test.shape)
-    # print(y_train_val.shape)
-
-    # print("train2:")
-    # print(y_train_val.shape)
-    # print(pred_train.shape)
-    #
-    #
-    # print("test2:")
-    # print(y_test.shape)
-    # print(pred_test.shape)
-
-
-    area_ratio_train = cumulative_gain_area_ratio(y_train, pred_train, title='training results')
-    area_ratio_test = cumulative_gain_area_ratio(y_test, pred_test, title='test results')
-
-    print('area ratio train:', area_ratio_train)
-    print('area ratio test:', area_ratio_test)
+    plt.show()
 
 
 
@@ -196,22 +163,52 @@ def analyze_logistic(X, y, model, analyze_eta=False):
 
 
 def main():
-    np.random.seed(2019)
+    # np.random.seed(2019)
     filename = 'data/default_of_credit_card_clients.xls'
     X, y = load_CC_data(filename)
-    # dataset = load_breast_cancer()
 
+
+    print(X.shape)
+
+
+    # dataset = load_breast_cancer()
     # X, y = dataset.data, dataset.target
+
 
     scale_columns = list(range(9, X.shape[1]))
 
 
-
     model = SGDClassification()
+    # clf = linear_model.LogisticRegressionCV()
 
     # cumulative_gain(X, y, model)
 
-    analyze_logistic(X, y, model)
+    analyze_logistic(X, y, model, scale_columns, analyze_eta=False)
+
+
+    # corr = pd.DataFrame(X)
+    # c = corr.corr().round(2)
+    # # print(c)
+    #
+    #
+    #
+    # sns.heatmap(c)
+    # plt.show()
+    #
+    #
+    # U, S, VT = np.linalg.svd(c)
+    #
+    # plt.semilogy(S)
+    # plt.show()
+
+
+    # U, S, VT = np.linalg.svd(X)
+
+    # plt.semilogy(S)
+    # plt.show()
+
+
+
 
     # t0 = time.time()
     # mse, r2, accuracy = CV(X_reduced, y, model, scale_columns=None)
