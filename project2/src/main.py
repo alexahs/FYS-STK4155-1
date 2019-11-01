@@ -22,30 +22,18 @@ from pylearn.resampling import *
 
 
 
-def load_CC_data(filename):
+def preprocess_CC_data(filename):
 
     nanDict = {}
     df = pd.read_excel(filename, header=1, skiprows=0, index_col=0, na_values=nanDict)
     df.rename(index=str, columns={"default payment next month": "defaultPaymentNextMonth"}, inplace=True)
 
-    #TODO:
-    #swap columns such that categories are consecutive columns 
-
-    # col_list = list(df)
-    #
-    # col_list[0], col_list[3] = col_list[3], col_list[0]
-    #
-    # df = df[col_list]
-    #
-    # # df.head()
-    #
-    #
-    # print(df)
 
     X = df.loc[:, df.columns != 'defaultPaymentNextMonth'].values
     y = df.loc[:, df.columns == 'defaultPaymentNextMonth'].values
 
 
+    #find and remove outliers in the data
     outlier_gender1 = np.where(X[:,1] < 1)[0]
     outlier_gender2 = np.where(X[:,1] > 2)[0]
 
@@ -69,22 +57,28 @@ def load_CC_data(filename):
     y = np.delete(y, outlier_rows, axis=0)
 
 
+    #split data into categorical and continuous features
+    categorical_inds = (1, 2, 3, 5, 6, 7, 8, 9, 10)
+    continuous_inds = (0, 4, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22)
+    X_cat = X[:,categorical_inds]
+    X_cont = X[:, continuous_inds]
 
-    onehotencoder = OneHotEncoder(categories="auto")
+
+    #onehot encode categorical data
+    onehotencoder = OneHotEncoder(categories="auto", sparse=False)
     preprocessor = ColumnTransformer(
             remainder="passthrough",
             transformers=[
-                ('onehot', onehotencoder, [1, 2, 3])])
+                ('onehot', onehotencoder, list(range(X_cat.shape[1])))])
 
+    X_cat = preprocessor.fit_transform(X_cat)
 
+    #join categorical and continuous features
+    X = np.concatenate((X_cont, X_cat), axis=1)
 
+    cont_feat_inds = list(range(X_cont.shape[1]))
 
-    X = preprocessor.fit_transform(X)
-
-    # y = onehotencoder.fit_transform(y)
-
-
-    return X, np.ravel(y)
+    return X, np.ravel(y), cont_feat_inds
 
 
 
@@ -92,7 +86,6 @@ def analyze_logistic(X, y, model, scale_columns, analyze_eta=False):
 
     X_train_val, X_test, y_train_val, y_test = train_test_split(X, y, test_size=0.2)
 
-    # columns = list(range(9, X.shape[1]))
     minmaxscaler = MinMaxScaler()
     scaler = ColumnTransformer(
                         remainder='passthrough',
@@ -127,10 +120,17 @@ def analyze_logistic(X, y, model, scale_columns, analyze_eta=False):
     X_train_val = scaler.transform(X_train_val)
 
 
-    model.fit(X_train_val, y_train_val)
 
-    clf = linear_model.LogisticRegressionCV()
-    clf.fit(X_train_val, y_train_val)
+    #model
+    model.fit(X_train_val, y_train_val)
+    pred_train = model.predict(X_train_val)
+    pred_test = model.predict(X_test)
+
+
+    #sklearn
+    # clf = linear_model.LogisticRegressionCV()
+    # clf.fit(X_train_val, y_train_val)
+    # pred_skl = clf.predict(X_test)
 
 
     # pred_train = model.predict(X_train_val, probability=True)
@@ -140,18 +140,15 @@ def analyze_logistic(X, y, model, scale_columns, analyze_eta=False):
     # print('area ratio train:', area_ratio_train)
     # print('area ratio test:', area_ratio_test)
 
-    pred_train = model.predict(X_train_val)
-    pred_test = model.predict(X_test)
-    pred_skl = clf.predict(X_test)
 
 
     ax1 = plot_confusion_matrix(y_test, pred_test, normalize=True, cmap='Blues')
-    ax2 = plot_confusion_matrix(y_test, pred_skl, normalize=True, cmap='Reds')
+    # ax2 = plot_confusion_matrix(y_test, pred_skl, normalize=True, cmap='Reds')
 
 
     bottom, top = ax1.get_ylim()
     ax1.set_ylim(bottom + 0.5, top - 0.5)
-    ax2.set_ylim(bottom + 0.5, top - 0.5)
+    # ax2.set_ylim(bottom + 0.5, top - 0.5)
 
     plt.show()
 
@@ -165,17 +162,17 @@ def analyze_logistic(X, y, model, scale_columns, analyze_eta=False):
 def main():
     # np.random.seed(2019)
     filename = 'data/default_of_credit_card_clients.xls'
-    X, y = load_CC_data(filename)
+    X, y, scale_columns = preprocess_CC_data(filename)
 
 
-    print(X.shape)
+    # print(X.shape)
 
 
     # dataset = load_breast_cancer()
     # X, y = dataset.data, dataset.target
 
 
-    scale_columns = list(range(9, X.shape[1]))
+    # scale_columns = list(range(9, X.shape[1]))
 
 
     model = SGDClassification()
