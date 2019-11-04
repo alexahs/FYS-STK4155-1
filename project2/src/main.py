@@ -12,6 +12,7 @@ import matplotlib.pyplot as plt
 from scikitplot.metrics import plot_confusion_matrix
 import scikitplot.metrics as skplt
 import seaborn as sns
+from matplotlib.patches import Rectangle
 
 
 from pylearn.logisticregression import SGDClassification
@@ -22,7 +23,7 @@ from pylearn.resampling import *
 
 
 
-def preprocess_CC_data(filename):
+def preprocess_CC_data(filename, balance_outcomes=False):
 
     nanDict = {}
     df = pd.read_excel(filename, header=1, skiprows=0, index_col=0, na_values=nanDict)
@@ -56,10 +57,34 @@ def preprocess_CC_data(filename):
     X = np.delete(X, outlier_rows, axis=0)
     y = np.delete(y, outlier_rows, axis=0)
 
+    #balance data set such that outcomes are 50/50
+    if balance_outcomes:
+        non_default_inds = np.where(y==0)[0]
+        default_inds = np.where(y==1)[0]
+
+        remove_size = len(non_default_inds) - len(default_inds)
+        remove_inds = np.random.choice(non_default_inds, size=remove_size, replace=False)
+
+        X = np.delete(X, remove_inds, axis=0)
+        y = np.delete(y, remove_inds, axis=0)
+
+
+
 
     #split data into categorical and continuous features
-    categorical_inds = (1, 2, 3, 5, 6, 7, 8, 9, 10)
-    continuous_inds = (0, 4, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22)
+    """
+    all categories onehot encoded
+    """
+    # categorical_inds = (1, 2, 3, 5, 6, 7, 8, 9, 10)
+    # continuous_inds = (0, 4, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22)
+
+
+    """
+    only marriage, sex and education onehot encoded
+    """
+    categorical_inds = (1, 2, 3)
+    continuous_inds = (0, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22)
+
     X_cat = X[:,categorical_inds]
     X_cont = X[:, continuous_inds]
 
@@ -78,11 +103,12 @@ def preprocess_CC_data(filename):
 
     cont_feat_inds = list(range(X_cont.shape[1]))
 
+    print('preprocessing done')
     return X, np.ravel(y), cont_feat_inds
 
 
 
-def analyze_logistic(X, y, model, scale_columns, analyze_eta=False):
+def analyze_logistic(X, y, model, scale_columns, analyze_params=False):
 
     X_train_val, X_test, y_train_val, y_test = train_test_split(X, y, test_size=0.2)
 
@@ -97,24 +123,77 @@ def analyze_logistic(X, y, model, scale_columns, analyze_eta=False):
     X_test = scaler.transform(X_test)
 
 
-    if analyze_eta:
-        n_etas = 5
-        eta_vals = np.logspace(-1, -5, n_etas)
+    if analyze_params:
 
-        #0: mse, 1: r2, 2:accuracy
-        error_models = np.zeros((3, n_etas))
+        error_scores = pd.DataFrame(columns=['log eta', 'n_epochs', 'mse', 'r2', 'accuracy'])
+        n_etas = 4
+        eta_vals = np.linspace(-1, -4, n_etas)
+        n_epoch_vals = np.array([10, 100, 500, 1000])
+        n_epochs = len(n_epoch_vals)
+
+        accuracy_scores = np.zeros((n_etas, n_epochs))
+
+        max_accuracy = 0
+        best_eta = 0
+        best_n_epochs = 0
+
         i = 0
         for eta in eta_vals:
-            print('eta=', eta)
-            model.set_eta(eta)
+            print('eta:', eta)
+            model.set_eta(10**eta)
+            j = 0
+            for epoch in n_epoch_vals:
+                print('epoch:', epoch)
+                model.set_n_epochs(epoch)
 
-            error_models[:, i] = CV(X_train_val, y_train_val, model)
-            print(error_models[:, i])
+                mse, r2, accuracy = CV(X_train_val, y_train_val, model)
+                accuracy_scores[i, j] = accuracy
+
+                error_scores = error_scores.append({'log eta': eta,
+                                                    'n_epochs': epoch,
+                                                    'mse': mse,
+                                                    'r2': r2,
+                                                    'accuracy': accuracy}, ignore_index=True)
+
+
+                if accuracy > max_accuracy:
+                    max_accuracy = accuracy
+                    best_eta = eta
+                    best_n_epochs = epoch
+
+
+                j += 1
 
             i += 1
-        max_accuracy_ind = np.argmax(error_models[2, :])
-        eta_opt = error_models[2, max_accuracy_ind]
-        model.set_eta(eta_opt)
+
+        model.set_eta(10**best_eta)
+        model.set_n_epochs(best_n_epochs)
+
+        print('max accuracy:', max_accuracy)
+        print('eta:', best_eta)
+        print('n_epochs:', best_n_epochs)
+
+
+        acc_table = pd.pivot_table(error_scores, values='accuracy', index=['log eta'], columns='n_epochs')
+
+        idx_i = np.where(acc_table == max_accuracy)[0]
+        idx_j = np.where(acc_table == max_accuracy)[1]
+        print('i', idx_i)
+        print('j', idx_j)
+
+        fig = plt.figure()
+        ax = sns.heatmap(acc_table, annot=True, fmt='.2g', cbar=True, linewidths=1, linecolor='white',
+                            cbar_kws={'label': 'Accuracy'})
+
+        ax.add_patch(Rectangle((idx_j, idx_i), 1, 1, fill=False, edgecolor='red', lw=2))
+
+        ax.set_xlabel('Number of epochs')
+        ax.set_ylabel(r'log$_{10}$ of Learning rate')
+        bottom, top = ax.get_ylim()
+        ax.set_ylim(bottom + 0.5, top - 0.5)
+        plt.show()
+
+
     #end if
 
     X_train_val = scaler.transform(X_train_val)
@@ -126,53 +205,96 @@ def analyze_logistic(X, y, model, scale_columns, analyze_eta=False):
     pred_train = model.predict(X_train_val)
     pred_test = model.predict(X_test)
 
-
     #sklearn
-    # clf = linear_model.LogisticRegressionCV()
-    # clf.fit(X_train_val, y_train_val)
-    # pred_skl = clf.predict(X_test)
+    clf = linear_model.LogisticRegressionCV()
+    clf.fit(X_train_val, y_train_val)
+    pred_skl = clf.predict(X_test)
+
+    accuracy_on_test = accuracy_score(y_test, pred_test)
+    accuracy_on_train = accuracy_score(y_train_val, pred_train)
+    accuracy_skl =accuracy_score(y_test, pred_skl)
 
 
-    # pred_train = model.predict(X_train_val, probability=True)
-    # pred_test = model.predict(X_test, probability=True)
-    # area_ratio_train = cumulative_gain_area_ratio(y_train_val, pred_train, title='training results')
-    # area_ratio_test = cumulative_gain_area_ratio(y_test, pred_test, title='test results')
-    # print('area ratio train:', area_ratio_train)
-    # print('area ratio test:', area_ratio_test)
+    print('accuracy on test:', accuracy_on_test)
+    print('accuracy on train:', accuracy_on_train)
+    print('accuracy skl:', accuracy_skl)
+
+    pred_train_prob = model.predict(X_train_val, probability=True)
+    pred_test_prob = model.predict(X_test, probability=True)
+    area_ratio_train = cumulative_gain_area_ratio(y_train_val, pred_train_prob, title='training results')
+    area_ratio_test = cumulative_gain_area_ratio(y_test, pred_test_prob, title=None)
+    print('area ratio train:', area_ratio_train)
+    print('area ratio test:', area_ratio_test)
+    plt.show()
 
 
 
-    ax1 = plot_confusion_matrix(y_test, pred_test, normalize=True, cmap='Blues')
-    # ax2 = plot_confusion_matrix(y_test, pred_skl, normalize=True, cmap='Reds')
+    ax1 = plot_confusion_matrix(y_test, pred_test, normalize=True, cmap='Blues', title='Test data')
+    ax2 = plot_confusion_matrix(y_train_val, pred_train, normalize=True, cmap='Blues', title='Training data')
+    ax3 = plot_confusion_matrix(y_test, pred_skl, normalize=True, cmap='Blues', title='Scikit Learn')
 
 
     bottom, top = ax1.get_ylim()
     ax1.set_ylim(bottom + 0.5, top - 0.5)
     # ax2.set_ylim(bottom + 0.5, top - 0.5)
+    ax3.set_ylim(bottom + 0.5, top - 0.5)
 
+    plt.show()
+
+
+
+def dim_red(X):
+
+
+    # Xpd = pd.DataFrame(X)
+    # Xpd = Xpd - Xpd.mean()
+
+    # corr = np.array(Xpd.corr())
+
+
+
+
+    """
+    from sklearn.decomposition import PCA
+    pca = PCA(n_components = 2)
+    X2D = pca.fit_transform(X)
+    print(X2D)
+
+    pca.components_.T[:, 0].
+    """
+
+    pca = PCA(n_components=X.shape[1])
+    X_red = pca.fit_transform(X)
+
+    # print(X_red.shape)
+
+    # pca = PCA(n_components=20)
+    # pca.fit(corr)
+    singular_values = pca.singular_values_
+    plt.semilogy(singular_values, lw=2)
+    plt.xlabel(r'index $i$', fontsize="large")
+    plt.ylabel(r'log$_{10}\sigma_i$', fontsize="large")
+    # sns.heatmap(corr)
+    plt.grid()
     plt.show()
 
 
 
 
 
-
-
-
 def main():
-    # np.random.seed(2019)
+    np.random.seed(2010)
     filename = 'data/default_of_credit_card_clients.xls'
-    X, y, scale_columns = preprocess_CC_data(filename)
+    X, y, scale_columns = preprocess_CC_data(filename, balance_outcomes=False)
 
-
-    # print(X.shape)
-
+    dim_red(X)
 
     # dataset = load_breast_cancer()
     # X, y = dataset.data, dataset.target
+    # scale_columns = list(range(X.shape[1]))
 
 
-    # scale_columns = list(range(9, X.shape[1]))
+
 
 
     model = SGDClassification()
@@ -180,29 +302,8 @@ def main():
 
     # cumulative_gain(X, y, model)
 
-    analyze_logistic(X, y, model, scale_columns, analyze_eta=False)
+    # analyze_logistic(X, y, model, scale_columns, analyze_params=True)
 
-
-    # corr = pd.DataFrame(X)
-    # c = corr.corr().round(2)
-    # # print(c)
-    #
-    #
-    #
-    # sns.heatmap(c)
-    # plt.show()
-    #
-    #
-    # U, S, VT = np.linalg.svd(c)
-    #
-    # plt.semilogy(S)
-    # plt.show()
-
-
-    # U, S, VT = np.linalg.svd(X)
-
-    # plt.semilogy(S)
-    # plt.show()
 
 
 

@@ -79,6 +79,9 @@ class SGDClassification():
     def set_eta(self, eta):
         self.eta0 = eta
 
+    def set_n_epochs(self, n_epochs):
+        self.n_epochs = n_epochs
+
 
     def learning_schedule(self, t, t0=1):
         return 1.0/(t + t0)
