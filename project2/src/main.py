@@ -23,7 +23,7 @@ from pylearn.resampling import *
 
 
 
-def preprocess_CC_data(filename, balance_outcomes=False):
+def preprocess_CC_data(filename, which_onehot = 1):
 
     nanDict = {}
     df = pd.read_excel(filename, header=1, skiprows=0, index_col=0, na_values=nanDict)
@@ -57,33 +57,27 @@ def preprocess_CC_data(filename, balance_outcomes=False):
     X = np.delete(X, outlier_rows, axis=0)
     y = np.delete(y, outlier_rows, axis=0)
 
-    #balance data set such that outcomes are 50/50
-    if balance_outcomes:
-        non_default_inds = np.where(y==0)[0]
-        default_inds = np.where(y==1)[0]
-
-        remove_size = len(non_default_inds) - len(default_inds)
-        remove_inds = np.random.choice(non_default_inds, size=remove_size, replace=False)
-
-        X = np.delete(X, remove_inds, axis=0)
-        y = np.delete(y, remove_inds, axis=0)
-
-
 
 
     #split data into categorical and continuous features
-    """
-    all categories onehot encoded
-    """
-    # categorical_inds = (1, 2, 3, 5, 6, 7, 8, 9, 10)
-    # continuous_inds = (0, 4, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22)
+    if which_onehot==1:
+        """
+        only marriage, sex and education onehot encoded
+        """
+        categorical_inds = (1, 2, 3)
+        continuous_inds = (0, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22)
 
 
-    """
-    only marriage, sex and education onehot encoded
-    """
-    categorical_inds = (1, 2, 3)
-    continuous_inds = (0, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22)
+    elif which_onehot==2:
+        """
+        all categories onehot encoded
+        """
+        categorical_inds = (1, 2, 3, 5, 6, 7, 8, 9, 10)
+        continuous_inds = (0, 4, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22)
+
+    else:
+        print('which_onehot must be specified as either 1 or 2')
+        exit(0)
 
     X_cat = X[:,categorical_inds]
     X_cont = X[:, continuous_inds]
@@ -108,9 +102,25 @@ def preprocess_CC_data(filename, balance_outcomes=False):
 
 
 
-def analyze_logistic(X, y, model, scale_columns, analyze_params=False):
+def analyze_logistic(X, y, model, scale_columns, analyze_params=False, balance_outcomes=False):
 
-    X_train_val, X_test, y_train_val, y_test = train_test_split(X, y, test_size=0.2)
+
+    X_train_val, X_test, y_train_val, y_test = train_test_split(X, y, test_size=0.1)
+
+
+    #balance training set such that outcomes are 50/50
+    if balance_outcomes:
+        non_default_inds = np.where(y_train_val==0)[0]
+        default_inds = np.where(y_train_val==1)[0]
+
+        remove_size = len(non_default_inds) - len(default_inds)
+        remove_inds = np.random.choice(non_default_inds, size=remove_size, replace=False)
+
+
+        X_train_val = np.delete(X, remove_inds, axis=0)
+        y_train_val = np.delete(y, remove_inds, axis=0)
+
+
 
     minmaxscaler = MinMaxScaler()
     scaler = ColumnTransformer(
@@ -192,15 +202,12 @@ def analyze_logistic(X, y, model, scale_columns, analyze_params=False):
         bottom, top = ax.get_ylim()
         ax.set_ylim(bottom + 0.5, top - 0.5)
         plt.show()
-
-
     #end if
 
     X_train_val = scaler.transform(X_train_val)
 
 
-
-    #model
+    #pylearn model
     model.fit(X_train_val, y_train_val)
     pred_train = model.predict(X_train_val)
     pred_test = model.predict(X_test)
@@ -215,16 +222,11 @@ def analyze_logistic(X, y, model, scale_columns, analyze_params=False):
     accuracy_skl =accuracy_score(y_test, pred_skl)
 
 
-    print('accuracy on test:', accuracy_on_test)
-    print('accuracy on train:', accuracy_on_train)
-    print('accuracy skl:', accuracy_skl)
 
     pred_train_prob = model.predict(X_train_val, probability=True)
     pred_test_prob = model.predict(X_test, probability=True)
     area_ratio_train = cumulative_gain_area_ratio(y_train_val, pred_train_prob, title='training results')
     area_ratio_test = cumulative_gain_area_ratio(y_test, pred_test_prob, title=None)
-    print('area ratio train:', area_ratio_train)
-    print('area ratio test:', area_ratio_test)
     plt.show()
 
 
@@ -236,10 +238,23 @@ def analyze_logistic(X, y, model, scale_columns, analyze_params=False):
 
     bottom, top = ax1.get_ylim()
     ax1.set_ylim(bottom + 0.5, top - 0.5)
-    # ax2.set_ylim(bottom + 0.5, top - 0.5)
+    ax2.set_ylim(bottom + 0.5, top - 0.5)
     ax3.set_ylim(bottom + 0.5, top - 0.5)
 
     plt.show()
+
+    print('accuracy on test:', accuracy_on_test)
+    print('accuracy on train:', accuracy_on_train)
+    print('accuracy skl:', accuracy_skl)
+    print('area ratio train:', area_ratio_train)
+    print('area ratio test:', area_ratio_test)
+
+
+    if analyze_params:
+        print('grid search stats:')
+        print('max accuracy:', max_accuracy)
+        print('eta:', best_eta)
+        print('n_epochs:', best_n_epochs)
 
 
 
@@ -285,9 +300,9 @@ def dim_red(X):
 def main():
     np.random.seed(2010)
     filename = 'data/default_of_credit_card_clients.xls'
-    X, y, scale_columns = preprocess_CC_data(filename, balance_outcomes=False)
+    X, y, scale_columns = preprocess_CC_data(filename, which_onehot = 2)
 
-    dim_red(X)
+    # dim_red(X)
 
     # dataset = load_breast_cancer()
     # X, y = dataset.data, dataset.target
@@ -302,7 +317,7 @@ def main():
 
     # cumulative_gain(X, y, model)
 
-    # analyze_logistic(X, y, model, scale_columns, analyze_params=True)
+    analyze_logistic(X, y, model, scale_columns, analyze_params=True, balance_outcomes=True)
 
 
 
