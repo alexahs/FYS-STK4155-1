@@ -65,7 +65,7 @@ def CV(X, y, model, n_splits=5, random_state=0, classification=True, scale_colum
 
 def standardize_all(train, val):
 
-    sc = MinMaxScaler()
+    sc = MinMaxScaler(feature_range=(-1,1))
     train = sc.fit_transform(train)
     val = sc.transform(val)
 
@@ -85,7 +85,7 @@ def standardize_all(train, val):
 
 def standardize_specific(train, val, columns):
 
-    sc = MinMaxScaler()
+    sc = MinMaxScaler(feature_range=(-1,1))
     scaler = ColumnTransformer(
             remainder="passthrough",
             transformers=[
