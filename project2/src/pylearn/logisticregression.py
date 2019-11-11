@@ -13,7 +13,6 @@ from sklearn.model_selection import KFold
 class SGDClassification():
 
     def __init__(self, batch_size=100, n_epochs=1000, eta0=0.1, learning_rate='constant'):
-
         self.X = None
         self.y = None
         self.y_pred = None
@@ -55,7 +54,6 @@ class SGDClassification():
 
         beta = np.random.randn(X.shape[1])
 
-
         for epoch in range(n_epochs):
             indeces = np.arange(n)
             np.random.shuffle(indeces)
@@ -88,9 +86,6 @@ class SGDClassification():
 
 
     def sigmoid(self, x):
-
-        # term = np.exp(x)
-        # return term / (1 + term)
         return 1/(1 + np.exp(-x))
 
 
